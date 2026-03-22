@@ -1,0 +1,30 @@
+{
+  "name": "codex-account-switch",
+  "version": "1.0.0",
+  "description": "Quick switch between multiple Codex CLI accounts",
+  "main": "dist/index.js",
+  "bin": {
+    "codex-account-switch": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "publish:npm": "npm publish --access public"
+  },
+  "keywords": [
+    "codex",
+    "cli",
+    "account",
+    "switch"
+  ],
+  "dependencies": {
+    "@codex-account-switch/core": "*",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

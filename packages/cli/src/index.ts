@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+
+import { Command } from "commander";
+import { setNamedAuthDir } from "@codex-account-switch/core";
+import { cmdList, cmdAdd, cmdRemove, cmdUse, cmdQuota, cmdCurrent, cmdRefresh, cmdExport, cmdImport } from "./commands";
+
+const program = new Command();
+
+program
+  .name("codex-account-switch")
+  .description("Quickly switch between multiple Codex accounts")
+  .version("1.0.0");
+
+program
+  .option("--auth-dir <path>", "Directory for saving and loading auth_{name}.json files; defaults to the Codex config directory");
+
+program.hook("preAction", () => {
+  const opts = program.opts<{ authDir?: string }>();
+  setNamedAuthDir(opts.authDir);
+});
+
+program
+  .command("list")
+  .aliases(["ls"])
+  .description("List all saved accounts")
+  .action(() => cmdList());
+
+program
+  .command("add <name>")
+  .description("Run codex login and save the account")
+  .action(async (name: string) => cmdAdd(name));
+
+program
+  .command("remove <name>")
+  .aliases(["rm", "del"])
+  .description("Remove a saved account")
+  .action((name: string) => cmdRemove(name));
+
+program
+  .command("use <name>")
+  .aliases(["switch"])
+  .description("Switch to a saved account")
+  .action((name: string) => cmdUse(name));
+
+program
+  .command("quota [name]")
+  .aliases(["info", "status"])
+  .description("Show account quota usage")
+  .action(async (name?: string) => cmdQuota(name));
+
+program
+  .command("current")
+  .description("Show the current active account")
+  .action(() => cmdCurrent());
+
+program
+  .command("refresh [name]")
+  .description("Refresh the account access token")
+  .action(async (name?: string) => cmdRefresh(name));
+
+program
+  .command("export [file]")
+  .description("Export accounts to a JSON file")
+  .option("-n, --names <names...>", "Export only the specified accounts")
+  .action((file?: string, opts?: { names?: string[] }) => cmdExport(file, opts?.names));
+
+program
+  .command("import <file>")
+  .description("Import accounts from a JSON file")
+  .option("--overwrite", "Overwrite existing accounts with the same name", false)
+  .action(async (file: string, opts?: { overwrite?: boolean }) => cmdImport(file, opts?.overwrite));
+
+program.parse();
