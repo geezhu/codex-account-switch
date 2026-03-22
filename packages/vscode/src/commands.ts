@@ -32,6 +32,13 @@ async function reloadWindow() {
   await vscode.commands.executeCommand("workbench.action.reloadWindow");
 }
 
+async function promptReloadWindow(message: string) {
+  const action = await vscode.window.showInformationMessage(message, "Reload", "Later");
+  if (action === "Reload") {
+    await reloadWindow();
+  }
+}
+
 async function maybeReloadWindowAfterSwitch(accountName: string) {
   const behavior = getReloadBehavior();
   if (behavior === "never") {
@@ -46,14 +53,18 @@ async function maybeReloadWindowAfterSwitch(accountName: string) {
     return;
   }
 
-  const action = await vscode.window.showInformationMessage(
-    `Switched to "${accountName}". Reload the window if the Codex extension is still using the previous account.`,
-    "Reload",
-    "Later"
+  await promptReloadWindow(
+    `Switched to "${accountName}". Reload the window if the Codex extension is still using the previous account.`
   );
-  if (action === "Reload") {
-    await reloadWindow();
-  }
+}
+
+async function promptReloadWindowAfterAdd(accountName: string, email?: string) {
+  const savedMessage = email
+    ? `✓ Account "${accountName}" was saved (${email}).`
+    : `✓ Account "${accountName}" was saved.`;
+  await promptReloadWindow(
+    `${savedMessage} Reload the window if the Codex extension should use this account immediately.`
+  );
 }
 
 export function registerCommands(
@@ -113,8 +124,8 @@ export function registerCommands(
 
       const result = addAccountFromAuth(name.trim());
       if (result.success) {
-        vscode.window.showInformationMessage(`✓ ${result.message} (${result.meta?.email})`);
         refreshAll(accountTree, statusBar);
+        await promptReloadWindowAfterAdd(name.trim(), result.meta?.email);
       } else {
         vscode.window.showErrorMessage(result.message);
       }

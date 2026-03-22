@@ -2,14 +2,33 @@
   "name": "codex-account-switch-vscode",
   "displayName": "Codex Account Switch",
   "description": "Codex Account Switch - VS Code extension",
-  "version": "1.0.1",
-  "publisher": "codex-account-switch",
+  "version": "1.0.2",
+  "publisher": "techfetch-dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jqknono/codex-account-switch"
+  },
+  "homepage": "https://github.com/jqknono/codex-account-switch",
+  "bugs": {
+    "url": "https://github.com/jqknono/codex-account-switch/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
+  "keywords": [
+    "codex",
+    "account",
+    "accounts",
+    "auth",
+    "quota",
+    "chatgpt",
+    "openai"
+  ],
+  "markdown": "github",
   "icon": "resources/icon.png",
   "main": "./dist/extension.js",
   "contributes": {
@@ -174,11 +193,9 @@
     "build": "npm run typecheck && npm run bundle",
     "dev": "node ./scripts/build.mjs --watch",
     "package": "npm --prefix ../.. run build:core && npm run build && npx @vscode/vsce package --no-dependencies --allow-missing-repository",
-    "publish:marketplace": "npx @vscode/vsce publish"
+    "publish:marketplace": "npx @vscode/vsce publish --no-dependencies"
   },
-  "dependencies": {
-    "@codex-account-switch/core": "*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",

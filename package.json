@@ -11,9 +11,6 @@
     "build:core": "npm run build -w packages/core",
     "build:cli": "npm run build -w packages/cli",
     "build:vscode": "npm run build -w packages/vscode",
-    "publish:cli": "npm run publish:npm -w packages/cli",
-    "package:vscode": "npm run package -w packages/vscode",
-    "publish:vscode": "npm run publish:marketplace -w packages/vscode",
     "dev:core": "npm run dev -w packages/core",
     "dev:cli": "npm run dev -w packages/cli",
     "dev:vscode": "npm run dev -w packages/vscode"

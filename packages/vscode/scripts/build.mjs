@@ -16,7 +16,7 @@ const options = {
   platform: "node",
   target: "node18",
   outfile: path.join(distDir, "extension.js"),
-  external: ["vscode"],
+  external: ["vscode", "@codex-account-switch/core"],
   sourcemap: watch,
   logLevel: "info",
 };
