@@ -3,7 +3,7 @@ import { AuthFile, IdTokenPayload, WindowInfo, QuotaInfo } from "./types";
 import { jwtDecode } from "jwt-decode";
 import { refreshAccessToken } from "./refresh";
 
-const USAGE_URL = "https://chatgpt.com/backend-api/codex/usage";
+const USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 
 export interface RateLimitWindow {
   used_percent: number;
@@ -75,7 +75,7 @@ async function fetchUsageApi(auth: AuthFile): Promise<UsageApiResponse> {
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
-    "chatgpt-account-id": accountId,
+    "ChatGPT-Account-Id": accountId,
     "User-Agent": "codex-account-switch/1.0",
     Accept: "application/json",
   };
