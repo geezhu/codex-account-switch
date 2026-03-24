@@ -28,6 +28,12 @@ packages/
 npm install -g codex-account-switch
 ```
 
+## CLI Demo
+
+Animated CLI usage demo showing `ls`, `use`, and `quota`:
+
+![codex-account-switch CLI demo](./assets/generated/codex-account-switch-demo-terminal-real.gif)
+
 ## CLI Commands
 
 | Command | Description |
@@ -54,7 +60,7 @@ You can also use the environment variable `CODEX_ACCOUNT_SWITCH_AUTH_DIR`.
 
 Activity Bar account view:
 
-![VS Code extension account view](./assets/image.png)
+![VS Code extension account view](./packages/vscode/resources/account-view.png)
 
 ### Features
 

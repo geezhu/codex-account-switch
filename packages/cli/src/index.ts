@@ -9,7 +9,7 @@ const program = new Command();
 program
   .name("codex-account-switch")
   .description("Quickly switch between multiple Codex accounts")
-  .version("1.0.0");
+  .version("1.0.1");
 
 program
   .option("--auth-dir <path>", "Directory for saving and loading auth_{name}.json files; defaults to the Codex config directory");

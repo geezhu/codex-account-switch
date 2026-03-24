@@ -22,6 +22,18 @@ function refreshAll(accountTree: AccountTreeProvider, statusBar: StatusBarManage
   void statusBar.refreshNow();
 }
 
+async function refreshTokenAndQuota(
+  accountTree: AccountTreeProvider,
+  statusBar: StatusBarManager,
+  name?: string
+) {
+  accountTree.refresh();
+  await Promise.all([
+    accountTree.refreshQuota(name),
+    statusBar.refreshNow(),
+  ]);
+}
+
 function getReloadBehavior(): "never" | "prompt" | "always" {
   return vscode.workspace
     .getConfiguration("codex-account-switch")
@@ -214,12 +226,12 @@ export function registerCommands(
         const name = item?.account.name;
 
         await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: "Refreshing token..." },
+          { location: vscode.ProgressLocation.Notification, title: "Refreshing token and quota..." },
           async () => {
             const result = await refreshAccount(name);
             if (result.success) {
-              vscode.window.showInformationMessage(`✓ ${result.message}`);
-              refreshAll(accountTree, statusBar);
+              await refreshTokenAndQuota(accountTree, statusBar, name);
+              vscode.window.showInformationMessage(`✓ ${result.message} and quota was refreshed`);
             } else {
               vscode.window.showErrorMessage(result.message);
             }

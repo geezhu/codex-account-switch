@@ -1,0 +1,40 @@
+{
+  "title": "codex-account-switch appleid demo",
+  "width": 1100,
+  "height": 820,
+  "style": "powershell",
+  "theme": "dark",
+  "prompt": "PS F:\\code\\codex-account-switch>",
+  "steps": [
+    {
+      "type": "input",
+      "text": " npx codex-account-switch ls",
+      "speed": 28
+    },
+    {
+      "type": "output",
+      "text": "\nSaved accounts:\n\n  apple1           zqjbrkh9rh@privaterelay.appleid.com  free [expires in 6d2h]\n● apple1_team      8s8gfh7wg8@privaterelay.appleid.com  team [expires in 8d2h] [current]\n  apple2           8s8gfh7wg8@privaterelay.appleid.com  free [expires in 6d21h]\n  apple2_team      zqjbrkh9rh@privaterelay.appleid.com  team [expires in 8d2h]\n",
+      "speed": 50
+    },
+    {
+      "type": "input",
+      "text": " npx codex-account-switch use apple1_team",
+      "speed": 28
+    },
+    {
+      "type": "output",
+      "text": "✓ Switched to account \"apple1_team\"\n  Email: 8s8gfh7wg8@privaterelay.appleid.com\n  Plan: team\n",
+      "speed": 50
+    },
+    {
+      "type": "input",
+      "text": " npx codex-account-switch quota apple1_team",
+      "speed": 28
+    },
+    {
+      "type": "output",
+      "text": "\nAccount quota - apple1_team\n\n  Email: 8s8gfh7wg8@privaterelay.appleid.com\n  Plan:  team\n  Token: valid\n\n  5h quota  ████████████████████ 100% used / 0% remaining\n            resets in 45m\n  7d quota  ██████░░░░░░░░░░░░░░ 32% used / 68% remaining\n            resets in 122h59m",
+      "speed": 50
+    }
+  ]
+}

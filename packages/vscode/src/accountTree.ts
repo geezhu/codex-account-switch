@@ -212,12 +212,16 @@ export class AccountTreeProvider implements vscode.TreeDataProvider<AccountTreeN
     context.subscriptions.push(this.configListener);
   }
 
-  async refreshQuota(): Promise<void> {
+  async refreshQuota(targetName?: string): Promise<void> {
     const accounts = listAccounts();
     const refreshVersion = ++this.refreshVersion;
+    const targetNames = targetName ? new Set([targetName]) : null;
+    const accountsToRefresh = targetNames
+      ? accounts.filter((account) => targetNames.has(account.name))
+      : accounts;
 
     this.pruneQuotaState(accounts.map((account) => account.name));
-    for (const account of accounts) {
+    for (const account of accountsToRefresh) {
       const previous = this.quotaState.get(account.name);
       this.quotaState.set(account.name, {
         info: previous?.info ?? null,
@@ -230,7 +234,7 @@ export class AccountTreeProvider implements vscode.TreeDataProvider<AccountTreeN
     this._onDidChangeTreeData.fire(undefined);
 
     await Promise.all(
-      accounts.map(async (account) => {
+      accountsToRefresh.map(async (account) => {
         try {
           const result = await queryQuota(account.name);
           if (refreshVersion !== this.refreshVersion) {
