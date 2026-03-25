@@ -19,7 +19,7 @@ const options = {
   platform: "node",
   target: "node18",
   outdir: distDir,
-  external: ["vscode", "@codex-account-switch/core"],
+  external: ["vscode"],
   sourcemap: watch,
   logLevel: "info",
 };
