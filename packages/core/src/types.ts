@@ -1,15 +1,16 @@
 export interface AuthTokens {
-  id_token: string;
-  access_token: string;
-  refresh_token: string;
-  account_id: string;
+  id_token?: string;
+  access_token?: string;
+  refresh_token?: string;
+  account_id?: string;
 }
 
 export interface AuthFile {
-  auth_mode: string;
-  OPENAI_API_KEY: string | null;
-  tokens: AuthTokens;
-  last_refresh: string;
+  auth_mode?: string;
+  OPENAI_API_KEY?: string | null;
+  tokens?: AuthTokens;
+  last_refresh?: string;
+  [key: string]: unknown;
 }
 
 export interface IdTokenPayload {
@@ -32,6 +33,34 @@ export interface AccountMeta {
   email: string;
   plan: string;
 }
+
+export interface ProviderConfig {
+  name: string;
+  base_url: string;
+  wire_api: string;
+}
+
+export interface ProviderProfile {
+  kind: "provider";
+  name: string;
+  auth: AuthFile;
+  config: ProviderConfig;
+}
+
+export type CurrentSelection =
+  | {
+      kind: "account";
+      name: string;
+      meta: AccountMeta | null;
+    }
+  | {
+      kind: "provider";
+      name: string;
+    }
+  | {
+      kind: "unknown";
+      meta: AccountMeta | null;
+    };
 
 export interface WindowInfo {
   usedPercent: number;

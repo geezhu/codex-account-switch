@@ -87,11 +87,16 @@ async function fetchUsageApi(auth: AuthFile): Promise<UsageApiResponse> {
     const httpErr = err as { statusCode?: number };
     if (httpErr.statusCode === 401 || httpErr.statusCode === 403) {
       const refreshed = await refreshAccessToken(auth);
+      auth.tokens ??= {};
       if (refreshed.access_token) {
         auth.tokens.access_token = refreshed.access_token;
       }
       if (refreshed.refresh_token) {
         auth.tokens.refresh_token = refreshed.refresh_token;
+      }
+
+      if (!auth.tokens.access_token) {
+        throw new Error("No access_token in auth file");
       }
 
       headers.Authorization = `Bearer ${auth.tokens.access_token}`;
@@ -115,18 +120,20 @@ export async function getQuotaInfo(auth: AuthFile): Promise<QuotaInfo> {
   let email = "unknown";
   let tokenExpired = false;
 
-  if (auth.tokens?.id_token) {
+  const idToken = auth.tokens?.id_token;
+  if (typeof idToken === "string" && idToken) {
     try {
-      const decoded = jwtDecode<IdTokenPayload>(auth.tokens.id_token);
+      const decoded = jwtDecode<IdTokenPayload>(idToken);
       email = decoded.email ?? "unknown";
     } catch {
       // ignore
     }
   }
 
-  if (auth.tokens?.access_token) {
+  const accessToken = auth.tokens?.access_token;
+  if (typeof accessToken === "string" && accessToken) {
     try {
-      const decoded = jwtDecode<{ exp?: number }>(auth.tokens.access_token);
+      const decoded = jwtDecode<{ exp?: number }>(accessToken);
       if (decoded.exp) {
         tokenExpired = decoded.exp * 1000 < Date.now();
       }
@@ -171,9 +178,10 @@ export async function getQuotaInfo(auth: AuthFile): Promise<QuotaInfo> {
 }
 
 function getPlanFromToken(auth: AuthFile): string {
-  if (!auth.tokens?.id_token) return "unknown";
+  const idToken = auth.tokens?.id_token;
+  if (!idToken) return "unknown";
   try {
-    const decoded = jwtDecode<IdTokenPayload>(auth.tokens.id_token);
+    const decoded = jwtDecode<IdTokenPayload>(idToken);
     return decoded["https://api.openai.com/auth"]?.chatgpt_plan_type ?? "unknown";
   } catch {
     return "unknown";

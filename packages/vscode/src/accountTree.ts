@@ -241,11 +241,12 @@ export class AccountTreeProvider implements vscode.TreeDataProvider<AccountTreeN
             return;
           }
 
+          const previous = this.quotaState.get(account.name);
           this.quotaState.set(account.name, {
-            info: result?.info ?? null,
-            error: result == null,
+            info: result.kind === "ok" ? result.info : null,
+            error: result.kind !== "ok",
             loading: false,
-            updatedAt: Date.now(),
+            updatedAt: result.kind === "ok" ? Date.now() : previous?.updatedAt ?? null,
           });
         } catch {
           if (refreshVersion !== this.refreshVersion) {
@@ -452,3 +453,4 @@ export class AccountTreeProvider implements vscode.TreeDataProvider<AccountTreeN
     return items;
   }
 }
+

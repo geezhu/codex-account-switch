@@ -10,11 +10,21 @@ import {
   listAccounts,
   ExportData,
   getNamedAuthPath,
+  getNamedProviderPath,
   readNamedAuth,
   formatTokenExpiry,
+  listModes,
+  switchMode,
+  getCurrentSelection,
+  readProviderProfile,
+  writeProviderProfile,
+  getDefaultProviderProfile,
+  ProviderProfile,
+  getModeDisplayName,
 } from "@codex-account-switch/core";
 import { AccountTreeProvider, AccountTreeItem, AccountTreeNode } from "./accountTree";
 import { StatusBarManager } from "./statusBar";
+import { buildCompletedProviderProfile, readProviderProfileDraft } from "./providerProfile";
 
 function refreshAll(accountTree: AccountTreeProvider, statusBar: StatusBarManager) {
   accountTree.refresh();
@@ -51,22 +61,24 @@ async function promptReloadWindow(message: string) {
   }
 }
 
-async function maybeReloadWindowAfterSwitch(accountName: string) {
+async function maybeReloadWindowAfterSwitch(label: string, kind: "account" | "mode") {
   const behavior = getReloadBehavior();
+  const noun = kind === "account" ? "account" : "mode";
+  const displayLabel = kind === "mode" ? getModeDisplayName(label) : label;
   if (behavior === "never") {
     return;
   }
 
   if (behavior === "always") {
     void vscode.window.showInformationMessage(
-      `Switched to "${accountName}". Reloading the window so the Codex extension can pick up the new auth.`
+      `Switched to ${noun} "${displayLabel}". Reloading the window so the Codex extension can pick up the new configuration.`
     );
     await reloadWindow();
     return;
   }
 
   await promptReloadWindow(
-    `Switched to "${accountName}". Reload the window if the Codex extension is still using the previous account.`
+    `Switched to ${noun} "${displayLabel}". Reload the window if the Codex extension is still using the previous configuration.`
   );
 }
 
@@ -77,6 +89,89 @@ async function promptReloadWindowAfterAdd(accountName: string, email?: string) {
   await promptReloadWindow(
     `${savedMessage} Reload the window if the Codex extension should use this account immediately.`
   );
+}
+
+async function askRequiredValue(options: {
+  prompt: string;
+  placeHolder: string;
+  value?: string;
+  password?: boolean;
+}): Promise<string | undefined> {
+  return vscode.window.showInputBox({
+    prompt: options.prompt,
+    placeHolder: options.placeHolder,
+    value: options.value,
+    password: options.password,
+    validateInput: (value) => (value.trim() ? null : "Value is required"),
+  });
+}
+
+async function ensureProviderProfile(name: string): Promise<ProviderProfile | null> {
+  const existing = readProviderProfile(name);
+  if (existing) {
+    return existing;
+  }
+
+  const defaults = getDefaultProviderProfile(name);
+  const draft = readProviderProfileDraft(getNamedProviderPath(name), name);
+  if (draft.invalid) {
+    void vscode.window.showWarningMessage(
+      `Provider "${name}" is incomplete or invalid. Required fields will be prompted and the profile will be updated.`
+    );
+  }
+
+  const existingApiKey =
+    typeof draft.auth.OPENAI_API_KEY === "string" && draft.auth.OPENAI_API_KEY.trim()
+      ? draft.auth.OPENAI_API_KEY
+      : undefined;
+  const existingBaseUrl =
+    typeof draft.config.base_url === "string" && draft.config.base_url.trim()
+      ? draft.config.base_url
+      : defaults.config.base_url || undefined;
+  const existingWireApi =
+    typeof draft.config.wire_api === "string" && draft.config.wire_api.trim()
+      ? draft.config.wire_api
+      : defaults.config.wire_api;
+
+  const apiKey = await askRequiredValue({
+    prompt: `Configure provider "${name}": OPENAI_API_KEY`,
+    placeHolder: "sk-...",
+    value: existingApiKey,
+    password: true,
+  });
+  if (!apiKey) {
+    return null;
+  }
+
+  const baseUrl = await askRequiredValue({
+    prompt: `Configure provider "${name}": base_url`,
+    placeHolder: "https://api.example.com/v1",
+    value: existingBaseUrl,
+  });
+  if (!baseUrl) {
+    return null;
+  }
+
+  const wireApi = await askRequiredValue({
+    prompt: `Configure provider "${name}": wire_api`,
+    placeHolder: defaults.config.wire_api,
+    value: existingWireApi,
+  });
+  if (!wireApi) {
+    return null;
+  }
+
+  const profile = buildCompletedProviderProfile(name, defaults, draft, {
+    apiKey,
+    baseUrl,
+    wireApi,
+  });
+
+  writeProviderProfile(profile);
+  vscode.window.showInformationMessage(
+    `${draft.exists ? "Updated" : "Created"} provider profile for "${name}".`
+  );
+  return profile;
 }
 
 export function registerCommands(
@@ -210,15 +305,78 @@ export function registerCommands(
         const result = useAccount(name);
         if (result.success) {
           vscode.window.showInformationMessage(
-            `✓ ${result.message} (${result.meta?.email})`
+            `✓ ${result.message} (${result.meta?.email ?? "unknown"})`
           );
           refreshAll(accountTree, statusBar);
-          await maybeReloadWindowAfterSwitch(name);
+          await maybeReloadWindowAfterSwitch(name, "account");
         } else {
           vscode.window.showErrorMessage(result.message);
         }
       }
     ),
+
+    vscode.commands.registerCommand("codex-account-switch.switchMode", async () => {
+      const selection = getCurrentSelection();
+      const currentMode = selection.kind === "provider" ? selection.name : "account";
+      const modes = Array.from(new Set([...listModes(), ...(selection.kind === "provider" ? [selection.name] : [])]));
+
+      const NEW_PROVIDER_ID = "__new_provider__";
+      const items = [
+        ...modes.map((modeName) => ({
+          label: modeName === currentMode ? `$(check) ${getModeDisplayName(modeName)}` : getModeDisplayName(modeName),
+          description: modeName === "account" ? "Account mode" : "Provider mode",
+          modeName,
+        })),
+        {
+          label: "$(add) New Provider...",
+          description: "Create a new provider profile",
+          modeName: NEW_PROVIDER_ID,
+        },
+      ];
+
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: "Select a mode to switch to",
+      });
+      if (!picked) {
+        return;
+      }
+
+      let targetName = picked.modeName;
+      if (targetName === NEW_PROVIDER_ID) {
+        const newName = await vscode.window.showInputBox({
+          prompt: "Enter a name for the new provider",
+          placeHolder: "e.g. my-proxy, local-api",
+          validateInput: (v) => {
+            const trimmed = v.trim();
+            if (!trimmed) return "Name is required";
+            if (trimmed === "account") return '"account" is reserved';
+            if (!/^[a-zA-Z0-9_\-]+$/.test(trimmed)) return "Only letters, numbers, hyphens and underscores are allowed";
+            return null;
+          },
+        });
+        if (!newName) {
+          return;
+        }
+        targetName = newName.trim();
+      }
+
+      if (targetName !== "account" && !readProviderProfile(targetName)) {
+        const created = await ensureProviderProfile(targetName);
+        if (!created) {
+          return;
+        }
+      }
+
+      const result = switchMode(targetName);
+      if (!result.success) {
+        vscode.window.showErrorMessage(result.message);
+        return;
+      }
+
+      vscode.window.showInformationMessage(`✓ ${result.message}`);
+      refreshAll(accountTree, statusBar);
+      await maybeReloadWindowAfterSwitch(targetName, "mode");
+    }),
 
     vscode.commands.registerCommand(
       "codex-account-switch.refreshToken",
@@ -232,6 +390,8 @@ export function registerCommands(
             if (result.success) {
               await refreshTokenAndQuota(accountTree, statusBar, name);
               vscode.window.showInformationMessage(`✓ ${result.message} and quota was refreshed`);
+            } else if (result.unsupported) {
+              vscode.window.showWarningMessage(result.message);
             } else {
               vscode.window.showErrorMessage(result.message);
             }
@@ -328,3 +488,4 @@ export function registerCommands(
     })
   );
 }
+

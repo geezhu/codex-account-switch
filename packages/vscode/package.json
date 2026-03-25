@@ -2,7 +2,7 @@
   "name": "codex-account-switch-vscode",
   "displayName": "Codex Account Switch",
   "description": "Codex Account Switch - VS Code extension",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "techfetch-dev",
   "repository": {
     "type": "git",
@@ -79,6 +79,11 @@
         "icon": "$(arrow-swap)"
       },
       {
+        "command": "codex-account-switch.switchMode",
+        "title": "Codex Account Switch: Switch Mode",
+        "icon": "$(plug)"
+      },
+      {
         "command": "codex-account-switch.refreshToken",
         "title": "Codex Account Switch: Refresh Token and Quota",
         "icon": "$(refresh)"
@@ -122,14 +127,19 @@
           "group": "navigation@2"
         },
         {
-          "command": "codex-account-switch.refreshList",
+          "command": "codex-account-switch.switchMode",
           "when": "view == codexAccountSwitchAccounts",
           "group": "navigation@3"
         },
         {
-          "command": "codex-account-switch.expandAllAccounts",
+          "command": "codex-account-switch.refreshList",
           "when": "view == codexAccountSwitchAccounts",
           "group": "navigation@4"
+        },
+        {
+          "command": "codex-account-switch.expandAllAccounts",
+          "when": "view == codexAccountSwitchAccounts",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
@@ -142,6 +152,11 @@
           "command": "codex-account-switch.refreshToken",
           "when": "view == codexAccountSwitchAccounts && viewItem == account",
           "group": "inline@2"
+        },
+        {
+          "command": "codex-account-switch.removeAccount",
+          "when": "view == codexAccountSwitchAccounts && viewItem == account",
+          "group": "inline@3"
         },
         {
           "command": "codex-account-switch.removeAccount",
@@ -192,8 +207,11 @@
     "bundle": "node ./scripts/build.mjs",
     "build": "npm run typecheck && npm run bundle",
     "dev": "node ./scripts/build.mjs --watch",
+    "test": "npm run build && node --test test/**/*.test.js",
     "package": "npm --prefix ../.. run build:core && npm run build && npx @vscode/vsce package --no-dependencies --allow-missing-repository",
-    "publish:marketplace": "npx @vscode/vsce publish --no-dependencies"
+    "publish:openvsx": "npm run package && node ./scripts/publish-openvsx.mjs",
+    "publish:marketplace": "npx @vscode/vsce publish --no-dependencies",
+    "publish:preview": "npx @vscode/vsce publish --no-dependencies --pre-release"
   },
   "dependencies": {},
   "devDependencies": {
@@ -204,3 +222,4 @@
   },
   "license": "MIT"
 }
+
