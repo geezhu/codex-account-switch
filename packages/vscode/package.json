@@ -2,7 +2,7 @@
   "name": "codex-account-switch-vscode",
   "displayName": "Codex Account Switch",
   "description": "Codex Account Switch - VS Code extension",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "publisher": "techfetch-dev",
   "repository": {
     "type": "git",
@@ -67,6 +67,16 @@
         "command": "codex-account-switch.addAccount",
         "title": "Codex Account Switch: Add Account",
         "icon": "$(add)"
+      },
+      {
+        "command": "codex-account-switch.reloginAccount",
+        "title": "Codex Account Switch: Re-login Account",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "codex-account-switch.renameAccount",
+        "title": "Codex Account Switch: Rename Account",
+        "icon": "$(edit)"
       },
       {
         "command": "codex-account-switch.removeAccount",
@@ -159,9 +169,19 @@
           "group": "inline@3"
         },
         {
-          "command": "codex-account-switch.removeAccount",
+          "command": "codex-account-switch.reloginAccount",
           "when": "view == codexAccountSwitchAccounts && viewItem == account",
           "group": "context@1"
+        },
+        {
+          "command": "codex-account-switch.renameAccount",
+          "when": "view == codexAccountSwitchAccounts && viewItem == account",
+          "group": "context@2"
+        },
+        {
+          "command": "codex-account-switch.removeAccount",
+          "when": "view == codexAccountSwitchAccounts && viewItem == account",
+          "group": "context@3"
         }
       ]
     },
@@ -222,4 +242,3 @@
   },
   "license": "MIT"
 }
-

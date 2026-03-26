@@ -3,6 +3,7 @@ import * as fs from "fs";
 import {
   addAccountFromAuth,
   removeAccount,
+  renameAccount,
   useAccount,
   refreshAccount,
   exportAccounts,
@@ -89,6 +90,102 @@ async function promptReloadWindowAfterAdd(accountName: string, email?: string) {
   await promptReloadWindow(
     `${savedMessage} Reload the window if the Codex extension should use this account immediately.`
   );
+}
+
+async function runCodexLogin(): Promise<boolean> {
+  const terminal = vscode.window.createTerminal("Codex Login");
+  terminal.show();
+  terminal.sendText("codex login");
+
+  const action = await vscode.window.showInformationMessage(
+    "Complete `codex login` in the terminal, then click Done.",
+    "Done",
+    "Cancel"
+  );
+
+  return action === "Done";
+}
+
+async function pickAccountName(
+  item: AccountTreeItem | undefined,
+  placeHolder: string
+): Promise<string | undefined> {
+  if (item) {
+    return item.account.name;
+  }
+
+  const accounts = listAccounts();
+  if (accounts.length === 0) {
+    vscode.window.showWarningMessage("No saved accounts");
+    return undefined;
+  }
+
+  return vscode.window.showQuickPick(
+    accounts.map((account) => account.name),
+    { placeHolder }
+  );
+}
+
+async function restoreSelectionAfterLogin(
+  previousSelection: ReturnType<typeof getCurrentSelection>,
+  targetName: string
+) {
+  if (previousSelection.kind === "account" && previousSelection.name === targetName) {
+    return { restored: false, restoredLabel: undefined as string | undefined };
+  }
+
+  if (previousSelection.kind === "account") {
+    const restored = useAccount(previousSelection.name);
+    if (!restored.success) {
+      vscode.window.showWarningMessage(
+        `Saved account "${targetName}" was updated, but restoring account "${previousSelection.name}" failed: ${restored.message}`
+      );
+      return { restored: false, restoredLabel: undefined as string | undefined };
+    }
+    return { restored: true, restoredLabel: previousSelection.name };
+  }
+
+  if (previousSelection.kind === "provider") {
+    const restored = switchMode(previousSelection.name);
+    if (!restored.success) {
+      vscode.window.showWarningMessage(
+        `Saved account "${targetName}" was updated, but restoring mode "${getModeDisplayName(previousSelection.name)}" failed: ${restored.message}`
+      );
+      return { restored: false, restoredLabel: undefined as string | undefined };
+    }
+    return {
+      restored: true,
+      restoredLabel: getModeDisplayName(previousSelection.name),
+    };
+  }
+
+  return { restored: false, restoredLabel: undefined as string | undefined };
+}
+
+function refreshFailureSupportsRelogin(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("refresh_token_reused") || normalized.includes("sign in again");
+}
+
+async function promptForAccountRename(currentName: string): Promise<string | undefined> {
+  return vscode.window.showInputBox({
+    prompt: `Rename account "${currentName}"`,
+    placeHolder: "Enter a new account name",
+    value: currentName,
+    validateInput: (value) => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return "Name is required";
+      }
+      if (trimmed === currentName) {
+        return "Enter a different name";
+      }
+      if (listAccounts().some((account) => account.name === trimmed)) {
+        return `Account "${trimmed}" already exists`;
+      }
+      return null;
+    },
+  });
 }
 
 async function askRequiredValue(options: {
@@ -217,17 +314,8 @@ export function registerCommands(
         if (confirm !== "Login and overwrite") return;
       }
 
-      const terminal = vscode.window.createTerminal("Codex Login");
-      terminal.show();
-      terminal.sendText("codex login");
-
-      const action = await vscode.window.showInformationMessage(
-        "Complete `codex login` in the terminal, then click Done.",
-        "Done",
-        "Cancel"
-      );
-
-      if (action !== "Done") return;
+      const completed = await runCodexLogin();
+      if (!completed) return;
 
       const result = addAccountFromAuth(name.trim());
       if (result.success) {
@@ -237,6 +325,69 @@ export function registerCommands(
         vscode.window.showErrorMessage(result.message);
       }
     }),
+
+    vscode.commands.registerCommand(
+      "codex-account-switch.reloginAccount",
+      async (item?: AccountTreeItem) => {
+        const name = await pickAccountName(item, "Select an account to re-login");
+        if (!name) return;
+
+        const confirm = await vscode.window.showWarningMessage(
+          `Re-login account "${name}" and overwrite its saved auth.json?`,
+          "Re-login",
+          "Cancel"
+        );
+        if (confirm !== "Re-login") return;
+
+        const previousSelection = getCurrentSelection();
+        const completed = await runCodexLogin();
+        if (!completed) return;
+
+        const result = addAccountFromAuth(name);
+        const shouldRestore =
+          previousSelection.kind !== "unknown" &&
+          !(previousSelection.kind === "account" && previousSelection.name === name);
+        const restoreResult = shouldRestore
+          ? await restoreSelectionAfterLogin(previousSelection, name)
+          : { restored: false, restoredLabel: undefined as string | undefined };
+
+        if (result.success) {
+          refreshAll(accountTree, statusBar);
+          if (restoreResult.restored) {
+            const savedMessage = result.meta?.email
+              ? `✓ Account "${name}" was updated (${result.meta.email}). Active selection stayed on "${restoreResult.restoredLabel}".`
+              : `✓ Account "${name}" was updated. Active selection stayed on "${restoreResult.restoredLabel}".`;
+            vscode.window.showInformationMessage(savedMessage);
+          } else {
+            await promptReloadWindowAfterAdd(name, result.meta?.email);
+          }
+        } else {
+          if (restoreResult.restored) {
+            refreshAll(accountTree, statusBar);
+          }
+          vscode.window.showErrorMessage(result.message);
+        }
+      }
+    ),
+
+    vscode.commands.registerCommand(
+      "codex-account-switch.renameAccount",
+      async (item?: AccountTreeItem) => {
+        const name = await pickAccountName(item, "Select an account to rename");
+        if (!name) return;
+
+        const newName = await promptForAccountRename(name);
+        if (!newName) return;
+
+        const result = renameAccount(name, newName);
+        if (result.success) {
+          vscode.window.showInformationMessage(`✓ ${result.message}`);
+          refreshAll(accountTree, statusBar);
+        } else {
+          vscode.window.showErrorMessage(result.message);
+        }
+      }
+    ),
 
     vscode.commands.registerCommand(
       "codex-account-switch.removeAccount",
@@ -392,6 +543,11 @@ export function registerCommands(
               vscode.window.showInformationMessage(`✓ ${result.message} and quota was refreshed`);
             } else if (result.unsupported) {
               vscode.window.showWarningMessage(result.message);
+            } else if (name && refreshFailureSupportsRelogin(result.message)) {
+              const action = await vscode.window.showErrorMessage(result.message, "Re-login");
+              if (action === "Re-login") {
+                await vscode.commands.executeCommand("codex-account-switch.reloginAccount", item);
+              }
             } else {
               vscode.window.showErrorMessage(result.message);
             }

@@ -164,6 +164,36 @@ export function removeAccount(name: string): { success: boolean; message: string
   return { success: true, message: `Account "${name}" was removed` };
 }
 
+export function renameAccount(
+  oldName: string,
+  newName: string
+): { success: boolean; message: string } {
+  const trimmedNewName = newName.trim();
+  if (!trimmedNewName) {
+    return { success: false, message: "New account name is required." };
+  }
+
+  const src = getNamedAuthPath(oldName);
+  if (!fs.existsSync(src)) {
+    return { success: false, message: `Account "${oldName}" does not exist.` };
+  }
+
+  if (oldName === trimmedNewName) {
+    return { success: true, message: `Account name is already "${trimmedNewName}".` };
+  }
+
+  const dest = getNamedAuthPath(trimmedNewName);
+  if (fs.existsSync(dest)) {
+    return { success: false, message: `Account "${trimmedNewName}" already exists.` };
+  }
+
+  fs.renameSync(src, dest);
+  return {
+    success: true,
+    message: `Renamed account "${oldName}" to "${trimmedNewName}"`,
+  };
+}
+
 export function useAccount(name: string): { success: boolean; message: string; meta?: AccountMeta } {
   const src = getNamedAuthPath(name);
   if (!fs.existsSync(src)) {
