@@ -274,6 +274,51 @@ test("getDefaultProviderProfile returns template for any name", () => {
   assert.equal(profile.config.base_url, "");
 });
 
+test("deleteProviderProfile removes a saved provider profile", () => {
+  const codexHome = createTempCodexHome();
+  process.env.CODEX_HOME = codexHome;
+
+  writeJson(path.join(codexHome, "provider_cliproxyapi.json"), {
+    kind: "provider",
+    name: "cliproxyapi",
+    auth: { OPENAI_API_KEY: "sk-test" },
+    config: { name: "cliproxyapi", base_url: "http://127.0.0.1:34046/v1", wire_api: "responses" },
+  });
+
+  const result = core.deleteProviderProfile("cliproxyapi");
+  assert.equal(result.success, true);
+  assert.equal(result.deactivated, false);
+  assert.equal(result.message, 'Removed provider "cliproxyapi"');
+  assert.equal(fs.existsSync(path.join(codexHome, "provider_cliproxyapi.json")), false);
+  assert.deepEqual(core.listModes(), ["account"]);
+});
+
+test("deleteProviderProfile deactivates the current provider mode", () => {
+  const codexHome = createTempCodexHome();
+  process.env.CODEX_HOME = codexHome;
+
+  writeJson(path.join(codexHome, "provider_cliproxyapi.json"), {
+    kind: "provider",
+    name: "cliproxyapi",
+    auth: { OPENAI_API_KEY: "sk-test" },
+    config: { name: "cliproxyapi", base_url: "http://127.0.0.1:34046/v1", wire_api: "responses" },
+  });
+
+  const switched = core.switchMode("cliproxyapi");
+  assert.equal(switched.success, true);
+  assert.equal(core.getActiveModelProvider(), "cliproxyapi");
+
+  const result = core.deleteProviderProfile("cliproxyapi");
+  assert.equal(result.success, true);
+  assert.equal(result.deactivated, true);
+  assert.equal(result.message, 'Removed provider "cliproxyapi" and exited provider mode');
+  assert.equal(core.getActiveModelProvider(), null);
+  assert.equal(fs.existsSync(path.join(codexHome, "provider_cliproxyapi.json")), false);
+
+  const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
+  assert.doesNotMatch(config, /^model_provider =/m);
+});
+
 test("switching between multiple providers works", () => {
   const codexHome = createTempCodexHome();
   process.env.CODEX_HOME = codexHome;

@@ -1,12 +1,18 @@
 import * as fs from "fs";
 import { writeCurrentAuth } from "./auth";
-import { activateProviderConfig, clearActiveModelProvider } from "./config";
+import { activateProviderConfig, clearActiveModelProvider, getActiveModelProvider } from "./config";
 import { getNamedAuthDir, getNamedProviderPath, listNamedProviderFiles } from "./paths";
 import { ProviderProfile } from "./types";
 
 export interface SwitchModeResult {
   success: boolean;
   message: string;
+}
+
+export interface DeleteProviderResult {
+  success: boolean;
+  message: string;
+  deactivated: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -79,6 +85,40 @@ export function readProviderProfile(name: string): ProviderProfile | null {
 export function writeProviderProfile(profile: ProviderProfile): void {
   fs.mkdirSync(getNamedAuthDir(), { recursive: true });
   fs.writeFileSync(getNamedProviderPath(profile.name), JSON.stringify(profile, null, 2), "utf-8");
+}
+
+export function deleteProviderProfile(name: string): DeleteProviderResult {
+  if (name === "account") {
+    return {
+      success: false,
+      message: '"account" mode cannot be deleted.',
+      deactivated: false,
+    };
+  }
+
+  const providerPath = getNamedProviderPath(name);
+  if (!fs.existsSync(providerPath)) {
+    return {
+      success: false,
+      message: `Provider "${name}" does not exist.`,
+      deactivated: false,
+    };
+  }
+
+  fs.unlinkSync(providerPath);
+
+  const deactivated = getActiveModelProvider() === name;
+  if (deactivated) {
+    clearActiveModelProvider();
+  }
+
+  return {
+    success: true,
+    message: deactivated
+      ? `Removed provider "${name}" and exited provider mode`
+      : `Removed provider "${name}"`,
+    deactivated,
+  };
 }
 
 export function listProviderModes(): string[] {

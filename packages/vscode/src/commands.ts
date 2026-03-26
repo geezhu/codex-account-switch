@@ -19,6 +19,7 @@ import {
   getCurrentSelection,
   readProviderProfile,
   writeProviderProfile,
+  deleteProviderProfile,
   getDefaultProviderProfile,
   ProviderProfile,
   getModeDisplayName,
@@ -31,6 +32,16 @@ function refreshAll(accountTree: AccountTreeProvider, statusBar: StatusBarManage
   accountTree.refresh();
   void accountTree.refreshQuota();
   void statusBar.refreshNow();
+}
+
+const DELETE_MODE_BUTTON: vscode.QuickInputButton = {
+  iconPath: new vscode.ThemeIcon("trash"),
+  tooltip: "Delete provider mode",
+};
+
+interface ModeQuickPickItem extends vscode.QuickPickItem {
+  modeName: string;
+  intent: "switch" | "create";
 }
 
 async function refreshTokenAndQuota(
@@ -124,6 +135,107 @@ async function pickAccountName(
     accounts.map((account) => account.name),
     { placeHolder }
   );
+}
+
+async function pickModeAction(
+  currentMode: string,
+  modes: string[]
+): Promise<
+  | { action: "switch"; modeName: string }
+  | { action: "delete"; modeName: string }
+  | { action: "create" }
+  | undefined
+> {
+  return new Promise((resolve) => {
+    const quickPick = vscode.window.createQuickPick<ModeQuickPickItem>();
+    let settled = false;
+
+    const finish = (
+      result:
+        | { action: "switch"; modeName: string }
+        | { action: "delete"; modeName: string }
+        | { action: "create" }
+        | undefined
+    ) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(result);
+      quickPick.hide();
+      quickPick.dispose();
+    };
+
+    quickPick.items = [
+      ...modes.map((modeName) => ({
+        label: modeName === currentMode ? `$(check) ${getModeDisplayName(modeName)}` : getModeDisplayName(modeName),
+        description: modeName === "account" ? "Account mode" : "Provider mode",
+        modeName,
+        intent: "switch" as const,
+        buttons: modeName === "account" ? undefined : [DELETE_MODE_BUTTON],
+      })),
+      {
+        label: "$(add) New Provider...",
+        description: "Create a new provider profile",
+        modeName: "__new_provider__",
+        intent: "create" as const,
+      },
+    ];
+    quickPick.placeholder = "Select a mode to switch to";
+    quickPick.matchOnDescription = true;
+
+    quickPick.onDidAccept(() => {
+      const selected = quickPick.selectedItems[0];
+      if (!selected) {
+        return;
+      }
+
+      if (selected.intent === "create") {
+        finish({ action: "create" });
+        return;
+      }
+
+      finish({ action: "switch", modeName: selected.modeName });
+    });
+
+    quickPick.onDidTriggerItemButton(({ item }) => {
+      if (item.intent !== "switch" || item.modeName === "account") {
+        return;
+      }
+      finish({ action: "delete", modeName: item.modeName });
+    });
+
+    quickPick.onDidHide(() => finish(undefined));
+    quickPick.show();
+  });
+}
+
+async function promptToDeleteMode(
+  accountTree: AccountTreeProvider,
+  statusBar: StatusBarManager,
+  modeName: string
+) {
+  const selection = getCurrentSelection();
+  const isActiveMode = selection.kind === "provider" && selection.name === modeName;
+  const action = await vscode.window.showWarningMessage(
+    isActiveMode
+      ? `Delete provider mode "${getModeDisplayName(modeName)}"? This removes its saved profile and exits the current provider mode.`
+      : `Delete provider mode "${getModeDisplayName(modeName)}"? This removes its saved profile.`,
+    { modal: true },
+    "Delete"
+  );
+  if (action !== "Delete") {
+    return;
+  }
+
+  const result = deleteProviderProfile(modeName);
+  if (!result.success) {
+    vscode.window.showErrorMessage(result.message);
+    return;
+  }
+
+  vscode.window.showInformationMessage(`✓ ${result.message}`);
+  refreshAll(accountTree, statusBar);
 }
 
 async function restoreSelectionAfterLogin(
@@ -470,30 +582,18 @@ export function registerCommands(
       const selection = getCurrentSelection();
       const currentMode = selection.kind === "provider" ? selection.name : "account";
       const modes = Array.from(new Set([...listModes(), ...(selection.kind === "provider" ? [selection.name] : [])]));
-
-      const NEW_PROVIDER_ID = "__new_provider__";
-      const items = [
-        ...modes.map((modeName) => ({
-          label: modeName === currentMode ? `$(check) ${getModeDisplayName(modeName)}` : getModeDisplayName(modeName),
-          description: modeName === "account" ? "Account mode" : "Provider mode",
-          modeName,
-        })),
-        {
-          label: "$(add) New Provider...",
-          description: "Create a new provider profile",
-          modeName: NEW_PROVIDER_ID,
-        },
-      ];
-
-      const picked = await vscode.window.showQuickPick(items, {
-        placeHolder: "Select a mode to switch to",
-      });
+      const picked = await pickModeAction(currentMode, modes);
       if (!picked) {
         return;
       }
 
-      let targetName = picked.modeName;
-      if (targetName === NEW_PROVIDER_ID) {
+      if (picked.action === "delete") {
+        await promptToDeleteMode(accountTree, statusBar, picked.modeName);
+        return;
+      }
+
+      let targetName = picked.action === "switch" ? picked.modeName : "";
+      if (picked.action === "create") {
         const newName = await vscode.window.showInputBox({
           prompt: "Enter a name for the new provider",
           placeHolder: "e.g. my-proxy, local-api",
